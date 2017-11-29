@@ -33,8 +33,8 @@
 #include <string>
 #include <utility>
 #include <algorithm>
-#include "./operator_common.h"
-#include "./mshadow_op.h"
+#include "../operator_common.h"
+#include "../mshadow_op.h"
 
 #if defined(USE_MKL) && defined(_OPENMP)
 #include <omp.h>

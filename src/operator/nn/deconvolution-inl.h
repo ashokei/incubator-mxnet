@@ -33,8 +33,8 @@
 #include <vector>
 #include <string>
 #include <utility>
-#include "./operator_common.h"
-#include "./linalg.h"
+#include "../operator_common.h"
+#include "../linalg.h"
 
 
 namespace mxnet {
