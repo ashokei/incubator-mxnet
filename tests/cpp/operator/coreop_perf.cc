@@ -91,10 +91,58 @@ static void RunCoreOpTimingTest(const bool isGPU,
   }
 }
 
+template<typename DType = float>
+static void RunFCTimingTest(const bool isGPU,
+                                const kwargs_t& op_kwargs,
+                                const char *op_name,
+                                const char *backward_op_name = "") {
+  const kwargs_t kwargs = test::op::CoreOpExecutor<DType>::ArgsWithOpName(
+    op_kwargs, op_name, backward_op_name);
+
+  // prime code and cache before the performance runs
+  test::op::CoreOperatorRunner<DType> runner;
+  runner.RunBidirectional(false, { TShape({1, 2, 64, 64}), TShape({250, 8192}) }, kwargs, 1);
+
+  // Do the performance runs
+  std::vector <TShape> shapes1, shapes2;
+  if (test::performance_run) {
+    shapes1 = {
+      {1,  1, 28,  28},
+      {1,  3, 28,  28},
+      {50, 1, 18,  32},
+      {50, 3, 18,  32},
+      {20, 3, 128, 128}
+    };
+    shapes2 = {
+      {250, 784},
+      {250, 2352},
+      {250, 576},
+      {250, 1728},
+      {250, 49152},
+    };
+  } else {
+    shapes1 = {
+      {1,  1, 28,  28},
+      {50, 3, 18,  32},
+    };
+    shapes2 = {
+      {250, 784},
+      {250, 1728},
+    };
+  }
+  const char *pu = isGPU ? "GPU" : "CPU";
+  for (size_t i = 0; i < shapes1.size(); i++) {
+    auto &shape1 = shapes1[i];
+    auto &shape2 = shapes2[i];
+    runner.TimingTest(std::string(op_name) + " Operator " + pu, isGPU, false, kwargs,
+                      2, 10, { shape1, shape2 });
+  }
+}
+
 /*!
  * \brief Generic bidirectional sanity test
  */
-TEST(COREOP_PERF, ExecuteBidirectional) {
+TEST(SGDMOM_PERF, ExecuteBidirectional) {
   std::cout << "NEGATIVE CLIP GRADIENT" << std::endl;
   RunCoreOpBidirectional(false, { {"lr", "0.01" }, { "clip_gradient", "-1" } },
                          "sgd_mom_update",
@@ -106,9 +154,9 @@ TEST(COREOP_PERF, ExecuteBidirectional) {
 }
 
 /*!
- * \brief ActivationOp timing test for CPU
+ * \brief sgd_mom_update timing test for CPU
  */
-TEST(COREOP_PERF, TimingCPU) {
+TEST(SGDMOM_PERF, TimingCPU) {
   std::cout << "NEGATIVE CLIP GRADIENT" << std::endl;
   RunCoreOpTimingTest(false, { {"lr", "0.01" }, { "clip_gradient", "-1" } },
                       "sgd_mom_update",
@@ -119,11 +167,31 @@ TEST(COREOP_PERF, TimingCPU) {
                       COREOP_BWD_OP_NAME_VALUE_NONE);
 }
 
+/*!
+ * \brief ActivationOp timing test for CPU
+ */
+TEST(ACT_PERF, TimingCPU) {
+  std::cout << "Activation with tanh" << std::endl;
+  RunCoreOpTimingTest(false, { {"act_type", "tanh" } },
+                      "Activation",
+                      COREOP_BWD_OP_NAME_VALUE_NONE);
+}
+
+/*!
+ * \brief FullyConnectedOp timing test for CPU
+ */
+TEST(FC_PERF, TimingCPU) {
+  std::cout << "FullyConnected" << std::endl;
+  RunFCTimingTest(false, { {"no_bias", "true"}, {"num_hidden", "250"} },
+                  "FullyConnected",
+                  COREOP_BWD_OP_NAME_VALUE_NONE);
+}
+
 #if MXNET_USE_CUDA == 1
 /*!
- * \brief ActivationOp timing test for GPU
+ * \brief sgd_mom_update timing test for GPU
  */
-TEST(COREOP_PERF, TimingGPU) {
+TEST(SGDMOM_PERF, TimingGPU) {
   std::cout << "NEGATIVE CLIP GRADIENT" << std::endl;
   RunCoreOpTimingTest(true, { {"lr", "0.01" }, { "clip_gradient", "-1" } },
                       "sgd_mom_update",
@@ -132,6 +200,26 @@ TEST(COREOP_PERF, TimingGPU) {
   RunCoreOpTimingTest(true, { {"lr", "0.01" }, { "clip_gradient", "1" } },
                       "sgd_mom_update",
                       COREOP_BWD_OP_NAME_VALUE_NONE);
+}
+
+/*!
+ * \brief ActivationOp timing test for GPU
+ */
+TEST(ACT_PERF, TimingGPU) {
+  std::cout << "Activation with tanh" << std::endl;
+  RunCoreOpTimingTest(true, { {"act_type", "tanh" } },
+                      "Activation",
+                      COREOP_BWD_OP_NAME_VALUE_NONE);
+}
+
+/*!
+ * \brief FullyConnectedOp timing test for GPU
+ */
+TEST(FC_PERF, TimingGPU) {
+  std::cout << "FullyConnected" << std::endl;
+  RunFCTimingTest(true, { {"no_bias", "true"},  {"num_hidden", "250"} },
+                  "FullyConnected",
+                  COREOP_BWD_OP_NAME_VALUE_NONE);
 }
 #endif  // MXNET_USE_CUDA == 1
 
